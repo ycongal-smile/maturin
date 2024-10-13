@@ -21,6 +21,7 @@ use indexmap::IndexMap;
 use normpath::PathExt as _;
 use same_file::is_same_file;
 use sha2::{Digest, Sha256};
+use sorted_vec::SortedVec;
 use std::collections::HashMap;
 use std::env;
 use std::ffi::OsStr;
@@ -97,7 +98,7 @@ pub trait ModuleWriter {
 /// A [ModuleWriter] that adds the module somewhere in the filesystem, e.g. in a virtualenv
 pub struct PathWriter {
     base_path: PathBuf,
-    record: Vec<(String, String, usize)>,
+    record: SortedVec<(String, String, usize)>,
     file_tracker: FileTracker,
 }
 
@@ -114,7 +115,7 @@ impl PathWriter {
 
         Ok(PathWriter {
             base_path,
-            record: Vec::new(),
+            record: SortedVec::new(),
             file_tracker: FileTracker::default(),
         })
     }
@@ -123,7 +124,7 @@ impl PathWriter {
     pub fn from_path(path: impl AsRef<Path>) -> Self {
         Self {
             base_path: path.as_ref().to_path_buf(),
-            record: Vec::new(),
+            record: SortedVec::new(),
             file_tracker: FileTracker::default(),
         }
     }
@@ -152,7 +153,7 @@ impl PathWriter {
             record_file.display()
         ))?;
 
-        for (filename, hash, len) in self.record {
+        for (filename, hash, len) in self.record.iter() {
             buffer
                 .write_all(format!("{filename},sha256={hash},{len}\n").as_bytes())
                 .context(format!(
@@ -229,7 +230,7 @@ impl ModuleWriter for PathWriter {
 /// A glorified zip builder, mostly useful for writing the record file of a wheel
 pub struct WheelWriter {
     zip: ZipWriter<File>,
-    record: Vec<(String, String, usize)>,
+    record: SortedVec<(String, String, usize)>,
     record_file: PathBuf,
     wheel_path: PathBuf,
     file_tracker: FileTracker,
@@ -309,7 +310,7 @@ impl WheelWriter {
 
         let mut builder = WheelWriter {
             zip: ZipWriter::new(file),
-            record: Vec::new(),
+            record: SortedVec::new(),
             record_file: metadata23.get_dist_info_dir().join("RECORD"),
             wheel_path,
             file_tracker: FileTracker::default(),
@@ -387,7 +388,7 @@ impl WheelWriter {
         let record_filename = self.record_file.to_str().unwrap().replace('\\', "/");
         debug!("Adding {}", record_filename);
         self.zip.start_file(&record_filename, options)?;
-        for (filename, hash, len) in self.record {
+        for (filename, hash, len) in self.record.iter() {
             self.zip
                 .write_all(format!("{filename},sha256={hash},{len}\n").as_bytes())?;
         }
